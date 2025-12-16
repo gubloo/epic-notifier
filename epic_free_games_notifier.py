@@ -97,29 +97,16 @@ def format_expiry(expiry_iso):
 
 
 def send_discord_notification(games):
-    if not DISCORD_WEBHOOK_URL:
-        return
-
-    embeds = []
-    for game in games:
-        embeds.append({
-            "title": game["title"],
-            "url": game["url"],
-            "description": f"{game['description'][:250]}
-
-⏳ **{format_expiry(game['expiry'])}**",
-            "image": {"url": game["image"]},
-            "footer": {"text": "Epic Games Store (Canada)"}
-        })
-
-    payload = {
-        "username": "Epic Free Games",
-        "avatar_url": "https://cdn2.unrealengine.com/egs-logo-400x400-400x400-9aef7e1eaa9f.png",
-        "content": "🎮 **New Free Epic Games Available (Canada)**",
-        "embeds": embeds
-    }
-
-    requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+    embeds.append({
+      "title": game["title"],
+      "url": game["url"],
+       "description": (
+          f"{game['description'][:250]}\n\n"
+          f"⏳ **{format_expiry(game['expiry'])}**"
+      ),
+       "image": {"url": game["image"]},
+       "footer": {"text": "Epic Games Store (Canada)"}
+    })
 
 
 def send_email_notification(games):
