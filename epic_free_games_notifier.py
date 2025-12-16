@@ -121,6 +121,7 @@ def send_discord_notification(games):
         "embeds": embeds
     }
 
+    print("Webhook URL loaded:", bool(DISCORD_WEBHOOK_URL))
     requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
 
 def send_email_notification(games):
