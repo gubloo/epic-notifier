@@ -13,16 +13,15 @@ from email.mime.text import MIMEText
 from datetime import datetime
 
 # ================== CONFIG ==================
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1450292543324426415/qRVTC-wxhF4txq7KkwRX3ilUpRFsb25znrU5PXbSlfeoTSNSi9G_SpgdOLafzD1ZBOTU"  # set to None to disable
+import os
 
-EMAIL_ENABLED = False
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_EMAIL = "your_email@gmail.com"
-SMTP_PASSWORD = "your_app_password"
-EMAIL_TO = "recipient_email@gmail.com"
+DISCORD_WEBHOOK_URL = os.getenv("https://discord.com/api/webhooks/1450292543324426415/qRVTC-wxhF4txq7KkwRX3ilUpRFsb25znrU5PXbSlfeoTSNSi9G_SpgdOLafzD1ZBOTU")
 
-STATE_FILE = "last_free_games.json"
+EMAIL_ENABLED = bool(os.getenv("EMAIL_ENABLED", False))
+SMTP_EMAIL = os.getenv("SMTP_EMAIL")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+EMAIL_TO = os.getenv("EMAIL_TO")
+
 # ============================================
 
 EPIC_API_URL = (
