@@ -1,0 +1,7 @@
+requests
+json
+os
+smtplib
+email.mime.multipart
+email.mime.text
+datetime
