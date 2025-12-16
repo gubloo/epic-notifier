@@ -13,7 +13,7 @@ from email.mime.text import MIMEText
 from datetime import datetime
 
 # ================== CONFIG ==================
-DISCORD_WEBHOOK_URL = "PASTE_DISCORD_WEBHOOK_URL_HERE"  # set to None to disable
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1450292543324426415/qRVTC-wxhF4txq7KkwRX3ilUpRFsb25znrU5PXbSlfeoTSNSi9G_SpgdOLafzD1ZBOTU"  # set to None to disable
 
 EMAIL_ENABLED = False
 SMTP_SERVER = "smtp.gmail.com"
