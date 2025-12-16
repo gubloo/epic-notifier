@@ -1,8 +1,8 @@
-# Epic Games Store – Free Games Notifier
-# ---------------------------------
-# Checks Epic Games Store free games once per day
-# Sends a modern Discord webhook notification and/or email
-# Only notifies if the free game(s) changed
+# Epic Games Store – Free Games Notifier (GitHub Actions Optimized)
+# -------------------------------------------------------------
+# - Uses GitHub Actions cache (no git commits)
+# - Shows expiry countdown for free games
+# - Uses Canadian Epic Games Store (en-CA, country=CA)
 
 import requests
 import json
@@ -10,24 +10,24 @@ import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ================== CONFIG ==================
-import os
-STATE_FILE = "last_free_games.json"
-
-DISCORD_WEBHOOK_URL = os.getenv("https://discord.com/api/webhooks/1450292543324426415/qRVTC-wxhF4txq7KkwRX3ilUpRFsb25znrU5PXbSlfeoTSNSi9G_SpgdOLafzD1ZBOTU")
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
 EMAIL_ENABLED = bool(os.getenv("EMAIL_ENABLED", False))
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
 SMTP_EMAIL = os.getenv("SMTP_EMAIL")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_TO = os.getenv("EMAIL_TO")
 
+STATE_FILE = "last_free_games.json"
 # ============================================
 
 EPIC_API_URL = (
     "https://store-site-backend-static.ak.epicgames.com/"
-    "freeGamesPromotions?locale=en-US&country=US&allowCountries=US"
+    "freeGamesPromotions?locale=en-CA&country=CA&allowCountries=CA"
 )
 
 
@@ -50,12 +50,19 @@ def get_free_games():
 
         for offer in offers:
             for promo in offer.get("promotionalOffers", []):
-                if promo.get("discountSetting", {}).get("discountPercentage") == 0:
+                discount = promo.get("discountSetting", {})
+                if discount.get("discountPercentage") == 0:
+                    end_date = promo.get("endDate")
+                    expiry = None
+                    if end_date:
+                        expiry = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+
                     games.append({
                         "title": game["title"],
                         "description": game.get("description", ""),
                         "image": game.get("keyImages", [{}])[0].get("url"),
-                        "url": f"https://store.epicgames.com/p/{game['productSlug']}"
+                        "url": f"https://store.epicgames.com/en-CA/p/{game['productSlug']}",
+                        "expiry": expiry.isoformat() if expiry else None
                     })
 
     return games
@@ -73,6 +80,22 @@ def save_state(games):
         json.dump(games, f, indent=2)
 
 
+def format_expiry(expiry_iso):
+    if not expiry_iso:
+        return "Unknown"
+
+    expiry = datetime.fromisoformat(expiry_iso)
+    now = datetime.now(timezone.utc)
+    delta = expiry - now
+
+    if delta.days < 0:
+        return "Expired"
+
+    days = delta.days
+    hours = delta.seconds // 3600
+    return f"{days}d {hours}h remaining"
+
+
 def send_discord_notification(games):
     if not DISCORD_WEBHOOK_URL:
         return
@@ -82,15 +105,17 @@ def send_discord_notification(games):
         embeds.append({
             "title": game["title"],
             "url": game["url"],
-            "description": game["description"][:300],
+            "description": f"{game['description'][:250]}
+
+⏳ **{format_expiry(game['expiry'])}**",
             "image": {"url": game["image"]},
-            "footer": {"text": "Epic Games Store – Free Game"}
+            "footer": {"text": "Epic Games Store (Canada)"}
         })
 
     payload = {
         "username": "Epic Free Games",
         "avatar_url": "https://cdn2.unrealengine.com/egs-logo-400x400-400x400-9aef7e1eaa9f.png",
-        "content": "🎮 **New Free Game(s) Available on Epic Games Store!**",
+        "content": "🎮 **New Free Epic Games Available (Canada)**",
         "embeds": embeds
     }
 
@@ -102,15 +127,16 @@ def send_email_notification(games):
         return
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Epic Games – New Free Game Available"
+    msg["Subject"] = "Epic Games – New Free Game (Canada)"
     msg["From"] = SMTP_EMAIL
     msg["To"] = EMAIL_TO
 
     game_blocks = "".join([
         f"""
-        <div style='margin-bottom:20px;'>
+        <div style='margin-bottom:24px;'>
             <h2>{g['title']}</h2>
             <p>{g['description']}</p>
+            <p><strong>⏳ {format_expiry(g['expiry'])}</strong></p>
             <a href='{g['url']}'>View on Epic Games Store</a>
         </div>
         """ for g in games
@@ -118,11 +144,11 @@ def send_email_notification(games):
 
     html = f"""
     <html>
-        <body style='font-family:Arial;'>
-            <h1>🎮 New Free Game(s) on Epic Games Store</h1>
+        <body style='font-family:Arial,Helvetica;'>
+            <h1>🎮 New Free Epic Games (Canada)</h1>
             {game_blocks}
             <hr>
-            <small>Checked on {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</small>
+            <small>Checked {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</small>
         </body>
     </html>
     """
