@@ -122,7 +122,9 @@ def send_discord_notification(games):
     }
 
     print("Webhook URL loaded:", bool(DISCORD_WEBHOOK_URL))
-    requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+    response = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
+    print("Discord status:", response.status_code)
+    print("Discord response:", response.text)
 
 def send_email_notification(games):
     if not EMAIL_ENABLED:
