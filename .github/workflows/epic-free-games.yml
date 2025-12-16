@@ -1,8 +1,8 @@
-name: Epic Free Games Notifier
+name: Epic Free Games Notifier (Canada)
 
 on:
   schedule:
-    - cron: "0 10 * * *"   # Runs daily at 10:00 UTC
+    - cron: "0 10 * * *"   # Daily at 10:00 UTC
   workflow_dispatch:
 
 jobs:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -21,7 +21,13 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run notifier
+      - name: Restore free games cache
+        uses: actions/cache@v4
+        with:
+          path: last_free_games.json
+          key: epic-free-games-cache
+
+      - name: Run Epic Free Games Notifier
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           SMTP_EMAIL: ${{ secrets.SMTP_EMAIL }}
@@ -29,10 +35,8 @@ jobs:
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
         run: python epic_free_games_notifier.py
 
-      - name: Commit updated state
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add last_free_games.json
-          git diff --quiet && git diff --staged --quiet || git commit -m "Update free games state"
-          git push
+      - name: Save free games cache
+        uses: actions/cache@v4
+        with:
+          path: last_free_games.json
+          key: epic-free-games-cache
