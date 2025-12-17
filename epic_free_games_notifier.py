@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 # ================== CONFIG ==================
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
-EMAIL_ENABLED = bool(os.getenv("EMAIL_ENABLED", True))
+EMAIL_ENABLED = bool(os.getenv("EMAIL_ENABLED", False))
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_EMAIL = os.getenv("SMTP_EMAIL")
