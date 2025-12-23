@@ -114,12 +114,18 @@ def send_discord_notification(games):
             "footer": {"text": "Epic Games Store (Canada)"}
         })
 
-    payload = {
-        "username": "Epic Free Games",
-        "avatar_url": "https://cdn2.unrealengine.com/egs-logo-400x400-400x400-9aef7e1eaa9f.png",
-        "content": "🎮 **New Free Epic Games Available (Canada)**",
-        "embeds": embeds
-    }
+game_titles = ", ".join(game["title"] for game in games)
+
+payload = {
+    "username": "Epic Free Games",
+    "avatar_url": "https://cdn2.unrealengine.com/egs-logo-400x400-400x400-9aef7e1eaa9f.png",
+    "content": (
+        "@everyone 🎮 **New FREE Epic Games Available (Canada)**\n\n"
+        f"🆓 **{game_titles}**"
+    ),
+    "embeds": embeds
+}
+
 
     print("Webhook URL loaded:", bool(DISCORD_WEBHOOK_URL))
     response = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
