@@ -100,7 +100,7 @@ def send_discord_notification(games):
     if not DISCORD_WEBHOOK_URL:
         return
 
-    embeds = []  # <-- THIS is what was missing
+    embeds = []
 
     for game in games:
         embeds.append({
@@ -114,19 +114,20 @@ def send_discord_notification(games):
             "footer": {"text": "Epic Games Store (Canada)"}
         })
 
-game_titles = ", ".join(game["title"] for game in games)
+    # ---- MESSAGE TEXT (outside embeds, pings everyone) ----
+    game_titles = ", ".join(game["title"] for game in games)
 
-payload = {
-    "username": "Epic Free Games",
-    "avatar_url": "https://cdn2.unrealengine.com/egs-logo-400x400-400x400-9aef7e1eaa9f.png",
-    "content": (
-        "@everyone 🎮 **New FREE Epic Games Available (Canada)**\n\n"
-        f"🆓 **{game_titles}**"
-    ),
-    "embeds": embeds
-}
+    payload = {
+        "username": "Epic Free Games",
+        "avatar_url": "https://cdn2.unrealengine.com/egs-logo-400x400-400x400-9aef7e1eaa9f.png",
+        "content": (
+            "@everyone 🎮 **New FREE Epic Games Available (Canada)**\n\n"
+            f"🆓 **{game_titles}**"
+        ),
+        "embeds": embeds
+    }
 
-
+    # ---- SEND ----
     print("Webhook URL loaded:", bool(DISCORD_WEBHOOK_URL))
     response = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
     print("Discord status:", response.status_code)
