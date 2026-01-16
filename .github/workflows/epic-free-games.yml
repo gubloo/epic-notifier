@@ -2,7 +2,7 @@ name: Epic Free Games Notifier (Canada)
 
 on:
   schedule:
-    - cron: "0 10 * * *"   # Daily at 10:00 UTC
+    - cron: "0 1 * * *"
   workflow_dispatch:
 
 jobs:
@@ -25,18 +25,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: last_free_games.json
-          key: epic-free-games-cache
+          key: epic-free-games-${{ hashFiles('last_free_games.json') }}
+          restore-keys: |
+            epic-free-games-
 
       - name: Run Epic Free Games Notifier
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          EMAIL_ENABLED: ${{ secrets.EMAIL_ENABLED }}
           SMTP_EMAIL: ${{ secrets.SMTP_EMAIL }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
         run: python epic_free_games_notifier.py
-
-      - name: Save free games cache
-        uses: actions/cache@v4
-        with:
-          path: last_free_games.json
-          key: epic-free-games-cache
