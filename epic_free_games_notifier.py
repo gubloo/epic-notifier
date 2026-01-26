@@ -1,107 +1,79 @@
-# Epic Games Store – Free Games Notifier (GitHub Actions Optimized)
-# -------------------------------------------------------------
-# - Uses GitHub Actions cache (no git commits)
-# - Shows expiry countdown for free games
-# - Uses Canadian Epic Games Store (en-CA, country=CA)
-
-import requests
-import json
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import json
+import requests
 from datetime import datetime, timezone
 
-# ================== CONFIG ==================
+STATE_FILE = "last_games.json"
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
-
-EMAIL_ENABLED = bool(os.getenv("EMAIL_ENABLED", False))
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_EMAIL = os.getenv("SMTP_EMAIL")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-EMAIL_TO = os.getenv("EMAIL_TO")
-
-STATE_FILE = "last_free_games.json"
-# ============================================
 
 EPIC_API_URL = (
     "https://store-site-backend-static.ak.epicgames.com/"
     "freeGamesPromotions?locale=en-CA&country=CA&allowCountries=CA"
 )
 
-
-def get_free_games():
-    response = requests.get(EPIC_API_URL, timeout=15)
-    response.raise_for_status()
-    data = response.json()
-
-    games = []
-    elements = data["data"]["Catalog"]["searchStore"]["elements"]
-
-    for game in elements:
-        promotions = game.get("promotions")
-        if not promotions:
-            continue
-
-        offers = promotions.get("promotionalOffers", [])
-        if not offers:
-            continue
-
-        for offer in offers:
-            for promo in offer.get("promotionalOffers", []):
-                discount = promo.get("discountSetting", {})
-                if discount.get("discountPercentage") == 0:
-                    end_date = promo.get("endDate")
-                    expiry = None
-                    if end_date:
-                        expiry = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
-
-                    games.append({
-                        "title": game["title"],
-                        "description": game.get("description", ""),
-                        "image": game.get("keyImages", [{}])[0].get("url"),
-                        "url": f"https://store.epicgames.com/en-CA/p/{game['productSlug']}",
-                        "expiry": expiry.isoformat() if expiry else None
-                    })
-
-    return games
-
-
 def load_last_state():
     if not os.path.exists(STATE_FILE):
         return []
-    with open(STATE_FILE, "r") as f:
-        return json.load(f)
+    try:
+        with open(STATE_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return []
 
-
-def save_state(games):
+def save_last_state(games):
+    if not games:
+        print("⚠️ Not saving empty game list")
+        return
     with open(STATE_FILE, "w") as f:
         json.dump(games, f, indent=2)
 
+def fetch_free_games():
+    r = requests.get(EPIC_API_URL, timeout=15)
+    r.raise_for_status()
+    data = r.json()
 
-def format_expiry(expiry_iso):
-    if not expiry_iso:
-        return "Unknown"
+    games = []
 
-    expiry = datetime.fromisoformat(expiry_iso)
+    for game in data["data"]["Catalog"]["searchStore"]["elements"]:
+        promos = game.get("promotions")
+        if not promos:
+            continue
+
+        for promo in promos.get("promotionalOffers", []):
+            offer = promo["promotionalOffers"][0]
+            if offer["discountSetting"]["discountPercentage"] != 100:
+                continue
+
+            expiry = offer["endDate"]
+
+            games.append({
+                "id": game["id"],
+                "title": game["title"],
+                "description": game.get("description", "No description available"),
+                "url": f"https://store.epicgames.com/en-US/p/{game['productSlug']}",
+                "image": game["keyImages"][0]["url"],
+                "expiry": expiry,
+            })
+
+    return games
+
+def format_expiry(iso_time):
+    end = datetime.fromisoformat(iso_time.replace("Z", "+00:00"))
     now = datetime.now(timezone.utc)
-    delta = expiry - now
-
-    if delta.days < 0:
-        return "Expired"
+    delta = end - now
 
     days = delta.days
     hours = delta.seconds // 3600
-    return f"{days}d {hours}h remaining"
 
+    if days >= 1:
+        return f"Free for {days}d {hours}h"
+    return f"Free for {hours}h"
 
 def send_discord_notification(games):
-    if not DISCORD_WEBHOOK_URL:
+    if not DISCORD_WEBHOOK_URL or not games:
         return
 
     embeds = []
-
     for game in games:
         embeds.append({
             "title": game["title"],
@@ -111,10 +83,9 @@ def send_discord_notification(games):
                 f"⏳ **{format_expiry(game['expiry'])}**"
             ),
             "image": {"url": game["image"]},
-            "footer": {"text": "Epic Games Store (Canada)"}
+            "footer": {"text": "Epic Games Store — Canada"},
         })
 
-    # ---- MESSAGE TEXT (outside embeds, pings everyone) ----
     game_titles = ", ".join(game["title"] for game in games)
 
     payload = {
@@ -124,66 +95,30 @@ def send_discord_notification(games):
             "@everyone 🎮 **New FREE Epic Games Available (Canada)**\n\n"
             f"🆓 **{game_titles}**"
         ),
-        "embeds": embeds
+        "embeds": embeds,
     }
 
-    # ---- SEND ----
-    print("Webhook URL loaded:", bool(DISCORD_WEBHOOK_URL))
     response = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
     print("Discord status:", response.status_code)
     print("Discord response:", response.text)
 
-def send_email_notification(games):
-    if not EMAIL_ENABLED:
+def main():
+    last_games = load_last_state()
+    current_games = fetch_free_games()
+
+    if not current_games:
+        print("⚠️ No games fetched, skipping")
         return
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Epic Games – New Free Game (Canada)"
-    msg["From"] = SMTP_EMAIL
-    msg["To"] = EMAIL_TO
+    last_ids = {g["id"] for g in last_games}
+    current_ids = {g["id"] for g in current_games}
 
-    game_blocks = "".join([
-        f"""
-        <div style='margin-bottom:24px;'>
-            <h2>{g['title']}</h2>
-            <p>{g['description']}</p>
-            <p><strong>⏳ {format_expiry(g['expiry'])}</strong></p>
-            <a href='{g['url']}'>View on Epic Games Store</a>
-        </div>
-        """ for g in games
-    ])
-
-    html = f"""
-    <html>
-        <body style='font-family:Arial,Helvetica;'>
-            <h1>🎮 New Free Epic Games (Canada)</h1>
-            {game_blocks}
-            <hr>
-            <small>Checked {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</small>
-        </body>
-    </html>
-    """
-
-    msg.attach(MIMEText(html, "html"))
-
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-        server.starttls()
-        server.login(SMTP_EMAIL, SMTP_PASSWORD)
-        server.send_message(msg)
-
-
-def main():
-    current_games = get_free_games()
-    last_games = load_last_state()
-
-    if current_games != last_games and current_games:
+    if current_ids != last_ids:
+        print("🎉 New games detected")
         send_discord_notification(current_games)
-        send_email_notification(current_games)
-        save_state(current_games)
-        print("New free game detected. Notification sent.")
+        save_last_state(current_games)
     else:
-        print("No change in free games.")
-
+        print("No changes detected")
 
 if __name__ == "__main__":
     main()
