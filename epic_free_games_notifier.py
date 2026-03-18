@@ -34,28 +34,50 @@ def fetch_free_games():
 
     games = []
 
-    for game in data["data"]["Catalog"]["searchStore"]["elements"]:
+    elements = data["data"]["Catalog"]["searchStore"]["elements"]
+
+    for game in elements:
         promos = game.get("promotions")
         if not promos:
             continue
 
-        for promo in promos.get("promotionalOffers", []):
-            offer = promo["promotionalOffers"][0]
-            if offer["discountSetting"]["discountPercentage"] != 100:
-                continue
+        # --- CURRENT FREE GAMES ---
+        for promo_group in promos.get("promotionalOffers", []):
+            for offer in promo_group.get("promotionalOffers", []):
+                discount = offer.get("discountSetting", {}).get("discountPercentage")
 
-            expiry = offer["endDate"]
+                if discount == 0:  # 0% price = FREE
+                    expiry = offer.get("endDate")
 
-            games.append({
-                "id": game["id"],
-                "title": game["title"],
-                "description": game.get("description", "No description available"),
-                "url": f"https://store.epicgames.com/en-US/p/{game['productSlug']}",
-                "image": game["keyImages"][0]["url"],
-                "expiry": expiry,
-            })
+                    games.append({
+                        "id": game["id"],
+                        "title": game["title"],
+                        "description": game.get("description", "No description available"),
+                        "url": f"https://store.epicgames.com/en-CA/p/{game['productSlug']}",
+                        "image": game["keyImages"][0]["url"],
+                        "expiry": expiry,
+                    })
 
-    return games
+        # --- FALLBACK: SOME FREE GAMES SHOW HERE ---
+        for promo_group in promos.get("upcomingPromotionalOffers", []):
+            for offer in promo_group.get("promotionalOffers", []):
+                discount = offer.get("discountSetting", {}).get("discountPercentage")
+
+                if discount == 0:
+                    expiry = offer.get("endDate")
+
+                    games.append({
+                        "id": game["id"],
+                        "title": game["title"],
+                        "description": game.get("description", "No description available"),
+                        "url": f"https://store.epicgames.com/en-CA/p/{game['productSlug']}",
+                        "image": game["keyImages"][0]["url"],
+                        "expiry": expiry,
+                    })
+
+    # Remove duplicates
+    unique = {g["id"]: g for g in games}
+    return list(unique.values())
 
 def format_expiry(iso_time):
     end = datetime.fromisoformat(iso_time.replace("Z", "+00:00"))
